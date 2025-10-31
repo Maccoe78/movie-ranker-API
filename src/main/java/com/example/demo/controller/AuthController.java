@@ -18,7 +18,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/auth")
-@Tag(name = "Authentication", description = "Authentication management endpoints")
+@Tag(name = "User", description = "User management endpoints")
 @CrossOrigin(origins = "*")
 public class AuthController {
 
@@ -127,6 +127,40 @@ public class AuthController {
         }
     }
 
-    
+    @PutMapping("/users/{id}")
+    @Operation(summary = "Update user by ID")
+    public ResponseEntity<Map<String, String>> updateUser(@PathVariable Long id, @RequestBody User updateRequest) {
+        Map<String, String> response = new HashMap<>();
+
+        Optional<User> userOpt = userRepository.findById(id);
+
+        if (userOpt.isEmpty()) {
+            response.put("message", "User not found");
+            return ResponseEntity.notFound().build();
+        }
+
+        User existingUser = userOpt.get();
+
+        if (updateRequest.getUsername() != null &&
+            !updateRequest.getUsername().equals(existingUser.getUsername()) &&
+            userRepository.existsByUsername(updateRequest.getUsername())) {
+            response.put("message", "Username is already taken");
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+        }
+
+        if (updateRequest.getUsername() != null && !updateRequest.getUsername().trim().isEmpty()) {
+            existingUser.setUsername(updateRequest.getUsername());
+        }
+
+        if (updateRequest.getPassword() != null && !updateRequest.getPassword().trim().isEmpty()) {
+            existingUser.setPassword(passwordEncoder.encode(updateRequest.getPassword()));
+        }
+
+        userRepository.save(existingUser);
+
+        response.put("message", "User updated successfully");
+        response.put("username", existingUser.getUsername());
+        return ResponseEntity.ok(response);
+    }
 
 }
