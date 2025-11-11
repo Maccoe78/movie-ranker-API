@@ -20,7 +20,7 @@ import java.util.Optional;
 @RequestMapping("/api/auth")
 @Tag(name = "User", description = "User management endpoints")
 @CrossOrigin(origins = "*")
-public class AuthController {
+public class UserController {
 
     @Autowired
     private UserRepository userRepository;
