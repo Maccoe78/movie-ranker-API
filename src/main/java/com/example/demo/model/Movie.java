@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "movies")
@@ -39,6 +40,10 @@ public class Movie {
     @Size(max = 1000, message = "Poster URL must be less than 1000 characters")
     private String posterUrl;
 
+    @JsonIgnore
+    @OneToMany(mappedBy = "movie", cascade = CascadeType.ALL)
+    private List<Rating> ratings;
+
     // Constructors
     public Movie() {}
 
@@ -49,6 +54,18 @@ public class Movie {
         this.durationMinutes = durationMinutes;
         this.genres = genres;
         this.posterUrl = posterUrl;
+    }
+
+    @Transient
+    public Double getAverageRating() {
+        if (ratings == null || ratings.isEmpty()) {
+            return null;
+        }
+
+        return ratings.stream()
+                .mapToInt(Rating::getRating)
+                .average()
+                .orElse(0.0);
     }
 
     // Getters and Setters

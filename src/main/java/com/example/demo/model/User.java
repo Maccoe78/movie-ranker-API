@@ -1,8 +1,10 @@
 package com.example.demo.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 
 @Entity
 @Table(name = "users")
@@ -18,8 +20,12 @@ public class User {
     private String username;
 
     @NotBlank(message = "Password is required")
-    @Size(min = 3, max = 20, message = "Password must be between 3 and 20 characters")
+    @Size(min = 3, max = 255, message = "Password must be between 3 and 255 characters")
     private String password;
+
+    @JsonIgnore
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    private List<Rating> ratings;
 
     // Constructors
     public User() {}
@@ -52,5 +58,8 @@ public class User {
     public void setPassword(String password) {
         this.password = password;
     }
+
+    public List<Rating> getRatings() {return ratings;}
+    public void setRatings(List<Rating> ratings) {this.ratings = ratings;}
 
 }
