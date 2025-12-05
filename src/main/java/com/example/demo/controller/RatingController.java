@@ -17,6 +17,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.example.demo.dto.RatingDTO;
+import java.util.stream.Collectors;
 
 import java.util.HashMap;
 import java.util.List;
@@ -68,7 +70,7 @@ public class RatingController {
             rating = existingRatingOpt.get();
             rating.setRating(request.getRating());
             rating.setComment(request.getComment());
-            response.put("message", "Rating update successfully");
+            response.put("message", "Rating updated successfully");
         } else {
             rating = new Rating(user, movie, request.getRating(), request.getComment());
             response.put("message", "Rating added successfully");
@@ -84,11 +86,11 @@ public class RatingController {
     public ResponseEntity<Map<String, Object>> getRatingsByMovie(@PathVariable Long movieId) {
         Map<String, Object> response = new HashMap<>();
 
-        List<Rating> ratings = ratingRepository.findByMovieId(movieId);
+        List<RatingDTO> ratingDTOs = ratingRepository.findRatingDTOsByMovieId(movieId);
         Double averageRating = ratingRepository.getAverageRatingForMovie(movieId);
         Long totalRatings = ratingRepository.countByMovieId(movieId);
 
-        response.put("ratings", ratings);
+        response.put("ratings", ratingDTOs);
         response.put("averageRating", averageRating);
         response.put("totalRatings", totalRatings);
 
