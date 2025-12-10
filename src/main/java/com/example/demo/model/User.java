@@ -27,6 +27,15 @@ public class User {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     private List<Rating> ratings;
 
+    @JsonIgnore
+    @ManyToMany
+    @JoinTable(
+        name = "user_follows",
+        joinColumns = @JoinColumn(name = "user_id"),
+        inverseJoinColumns = @JoinColumn(name = "followed_user_id")
+    )
+    private List<User> following;
+
     // Constructors
     public User() {}
 
@@ -61,5 +70,8 @@ public class User {
 
     public List<Rating> getRatings() {return ratings;}
     public void setRatings(List<Rating> ratings) {this.ratings = ratings;}
+
+    public List<User> getFollowing() {return following;}
+    public void setFollowing(List<User> following) {this.following = following;}
 
 }
