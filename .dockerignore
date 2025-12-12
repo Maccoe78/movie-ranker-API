@@ -1,0 +1,19 @@
+# Maven
+target/
+!target/*.jar
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Git
+.git/
+.gitignore
+
+# Tests
+src/test/
+
+# Other
+README.md
+.github/
