@@ -1,7 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.model.Movie;
-import com.example.demo.repository.MovieRepository;
+import com.example.demo.service.MovieService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -22,64 +22,57 @@ import java.util.Optional;
 public class MovieController {
 
     @Autowired
-    private MovieRepository movieRepository;
+    private MovieService movieService;
 
     @PostMapping
     @Operation(summary = "Add a new movie")
     public ResponseEntity<Map<String, Object>> addMovie(@Valid @RequestBody Movie movie) {
         Map<String, Object> response = new HashMap<>();
 
-        // Check if movie with same name already exists
-        Optional<Movie> existingMovie = movieRepository.findByNameIgnoreCase(movie.getName());
-        if (existingMovie.isPresent()) {
-            response.put("message", "A movie with this name already exists");
-            response.put("existingMovie", existingMovie.get());
+        try {
+            Movie savedMovie = movieService.addMovie(movie);
+            response.put("message", "Movie added successfully");
+            response.put("movie", savedMovie);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (IllegalArgumentException e) {
+            response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
         }
-
-        Movie savedMovie = movieRepository.save(movie);
-        response.put("message", "Movie added successfully");
-        response.put("movie", savedMovie);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @GetMapping
     @Operation(summary = "Get all movies")
     public ResponseEntity<List<Movie>> getAllMovies() {
-        List<Movie> movies = movieRepository.findAll();
+        List<Movie> movies = movieService.getAllMovies();
         return ResponseEntity.ok(movies);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get movie by ID")
     public ResponseEntity<Movie> getMovieById(@PathVariable Long id) {
-        Optional<Movie> movieOpt = movieRepository.findById(id);
-        
-        if (movieOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        
-        return ResponseEntity.ok(movieOpt.get());
+        Optional<Movie> movieOpt = movieService.getMovieById(id);
+        return movieOpt.map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/search")
     @Operation(summary = "Search movies by name")
     public ResponseEntity<List<Movie>> searchMoviesByName(@RequestParam String name) {
-        List<Movie> movies = movieRepository.findByNameContainingIgnoreCase(name);
+        List<Movie> movies = movieService.searchMoviesByName(name);
         return ResponseEntity.ok(movies);
     }
 
     @GetMapping("/year/{year}")
     @Operation(summary = "Get movies by release year")
     public ResponseEntity<List<Movie>> getMoviesByYear(@PathVariable Integer year) {
-        List<Movie> movies = movieRepository.findByReleaseYear(year);
+        List<Movie> movies = movieService.getMoviesByYear(year);
         return ResponseEntity.ok(movies);
     }
 
     @GetMapping("/genre/{genre}")
     @Operation(summary = "Get movies by genre")
     public ResponseEntity<List<Movie>> getMoviesByGenre(@PathVariable String genre) {
-        List<Movie> movies = movieRepository.findByGenre(genre);
+        List<Movie> movies = movieService.getMoviesByGenre(genre);
         return ResponseEntity.ok(movies);
     }
 
@@ -88,50 +81,21 @@ public class MovieController {
     public ResponseEntity<Map<String, Object>> updateMovie(@PathVariable Long id, @RequestBody Movie updateRequest) {
         Map<String, Object> response = new HashMap<>();
         
-        Optional<Movie> movieOpt = movieRepository.findById(id);
-        
-        if (movieOpt.isEmpty()) {
-            response.put("message", "Movie not found");
-            return ResponseEntity.notFound().build();
-        }
-        
-        Movie existingMovie = movieOpt.get();
-        
-        // Check if new name already exists (only if name is being changed)
-        if (updateRequest.getName() != null && 
-            !updateRequest.getName().equalsIgnoreCase(existingMovie.getName())) {
-            Optional<Movie> duplicateMovie = movieRepository.findByNameIgnoreCase(updateRequest.getName());
-            if (duplicateMovie.isPresent()) {
-                response.put("message", "A movie with this name already exists");
+        try {
+            Movie updatedMovie = movieService.updateMovie(id, updateRequest);
+            response.put("message", "Movie updated successfully");
+            response.put("movie", updatedMovie);
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            response.put("message", e.getMessage());
+            
+            // Bepaal de juiste status code op basis van de error message
+            if (e.getMessage().equals("Movie not found")) {
+                return ResponseEntity.notFound().build();
+            } else {
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
             }
         }
-        
-        // Update fields if provided
-        if (updateRequest.getName() != null && !updateRequest.getName().trim().isEmpty()) {
-            existingMovie.setName(updateRequest.getName());
-        }
-        if (updateRequest.getReleaseYear() != null) {
-            existingMovie.setReleaseYear(updateRequest.getReleaseYear());
-        }
-        if (updateRequest.getDescription() != null) {
-            existingMovie.setDescription(updateRequest.getDescription());
-        }
-        if (updateRequest.getDurationMinutes() != null) {
-            existingMovie.setDurationMinutes(updateRequest.getDurationMinutes());
-        }
-        if (updateRequest.getGenres() != null) {
-            existingMovie.setGenres(updateRequest.getGenres());
-        }
-        if (updateRequest.getPosterUrl() != null) {
-            existingMovie.setPosterUrl(updateRequest.getPosterUrl());
-        }
-        
-        Movie updatedMovie = movieRepository.save(existingMovie);
-        
-        response.put("message", "Movie updated successfully");
-        response.put("movie", updatedMovie);
-        return ResponseEntity.ok(response);
     }
 
     @DeleteMapping("/{id}")
@@ -139,14 +103,13 @@ public class MovieController {
     public ResponseEntity<Map<String, String>> deleteMovie(@PathVariable Long id) {
         Map<String, String> response = new HashMap<>();
         
-        Optional<Movie> movieOpt = movieRepository.findById(id);
-        
-        if (movieOpt.isEmpty()) {
+        boolean deleted = movieService.deleteMovie(id);
+    
+        if (!deleted) {
             response.put("message", "Movie not found");
             return ResponseEntity.notFound().build();
         }
         
-        movieRepository.deleteById(id);
         response.put("message", "Movie with ID " + id + " deleted successfully");
         return ResponseEntity.ok(response);
     }
