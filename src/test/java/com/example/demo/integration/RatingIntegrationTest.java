@@ -73,7 +73,7 @@ class RatingIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(addRequest))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Rating added successfully"))
+                .andExpect(jsonPath("$.message").value("Rating saved successfully"))
                 .andExpect(jsonPath("$.rating.rating").value(5))
                 .andExpect(jsonPath("$.rating.comment").value("Integration test rating!"));
 
@@ -114,7 +114,7 @@ class RatingIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(updateRequest))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Rating updated successfully"));
+                .andExpect(jsonPath("$.message").value("Rating saved successfully"));
 
         mockMvc.perform(get("/api/ratings/movie/" + testMovie.getId()))
                 .andExpect(status().isOk())

@@ -45,6 +45,7 @@ class UserIntegrationTest {
             }
             """;
 
+        // Register via API
         mockMvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(registerRequest))
@@ -52,9 +53,24 @@ class UserIntegrationTest {
                 .andExpect(jsonPath("$.message").value("User registered successfully"))
                 .andExpect(jsonPath("$.username").value("newuser"));
 
-        User savedUser = userRepository.findByUsername("newuser").orElseThrow();
-        assert savedUser.getUsername().equals("newuser");
-        assert !savedUser.getPassword().equals("password123");
+        // Verificatie via API: haal user op
+        mockMvc.perform(get("/api/auth/users/username/newuser"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("newuser"));
+
+        // Verificatie via API: test login met nieuwe credentials
+        String loginRequest = """
+            {
+                "username": "newuser",
+                "password": "password123"
+            }
+            """;
+
+        mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(loginRequest))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("newuser"));
     }
 
     @Test
@@ -140,15 +156,19 @@ class UserIntegrationTest {
             }
             """;
 
+        // 1. Register user
         mockMvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(registerRequest))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.message").value("User registered successfully"));
 
-        User registeredUser = userRepository.findByUsername("workflowuser").orElseThrow();
-        assert registeredUser != null;
+        // 2. Verificatie via API: check of user bestaat
+        mockMvc.perform(get("/api/auth/users/username/workflowuser"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("workflowuser"));
 
+        // 3. Login test
         String loginRequest = """
             {
                 "username": "workflowuser",
@@ -163,10 +183,32 @@ class UserIntegrationTest {
                 .andExpect(jsonPath("$.message").value("Login successful"))
                 .andExpect(jsonPath("$.username").value("workflowuser"));
 
+        // 4. Test duplicate registration
         mockMvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(registerRequest))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Username is already taken"));
+    }
+
+    @Test
+    void deleteUserById_Success() throws Exception {
+        // 1. Setup: maak user aan via repository (setup is OK)
+        User user = new User("deleteuser", passwordEncoder.encode("password123"));
+        user = userRepository.save(user);
+        Long userId = user.getId();
+
+        // 2. Verificatie: user bestaat via API
+        mockMvc.perform(get("/api/auth/users/" + userId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("deleteuser"));
+
+        // 3. Delete via API
+        mockMvc.perform(delete("/api/auth/users/" + userId))
+                .andExpect(status().isOk());
+
+        // 4. Verificatie via API: user is weg (moet 404 geven)
+        mockMvc.perform(get("/api/auth/users/" + userId))
+                .andExpect(status().isNotFound());
     }
 }

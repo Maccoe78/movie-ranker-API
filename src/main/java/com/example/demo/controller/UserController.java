@@ -1,7 +1,7 @@
 package com.example.demo.controller;
 
 import com.example.demo.model.User;
-import com.example.demo.repository.UserRepository;
+import com.example.demo.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -23,28 +23,22 @@ import java.util.Optional;
 public class UserController {
 
     @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private UserService userService;
 
     @PostMapping("/register")
     @Operation(summary = "Register a new user")
     public ResponseEntity<Map<String, String>> registerUser(@Valid @RequestBody User user) {
         Map<String, String> response = new HashMap<>();
 
-        if (userRepository.existsByUsername(user.getUsername())) {
-            response.put("message", "Username is already taken");
+        try {
+            User savedUser = userService.registerUser(user);
+            response.put("message", "User registered successfully");
+            response.put("username", savedUser.getUsername());
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (IllegalArgumentException e) {
+            response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
         }
-
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
-
-        userRepository.save(user);
-
-        response.put("message", "User registered successfully");
-        response.put("username", user.getUsername());
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PostMapping("/login")
@@ -52,63 +46,47 @@ public class UserController {
     public ResponseEntity<Map<String, String>> loginUser(@RequestBody User loginRequest) {
         Map<String, String> response = new HashMap<>();
 
-        Optional<User> userOpt = userRepository.findByUsername(loginRequest.getUsername());
-
-        if (userOpt.isEmpty()) {
-            response.put("message", "User not found");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-        }
-
-        User user = userOpt.get();
-
-        if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
-            response.put("message", "Invalid password");
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-        }
-
-        response.put("message", "Login successful");
-        response.put("username", user.getUsername());
-        return ResponseEntity.ok(response);
+            try {
+                User user = userService.loginUser(loginRequest.getUsername(), loginRequest.getPassword());
+                response.put("message", "Login successful");
+                response.put("username", user.getUsername());
+                return ResponseEntity.ok(response);
+            } catch (IllegalArgumentException e) {
+                response.put("message", e.getMessage());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            }
     }
 
     @GetMapping("/users")
     @Operation(summary = "Get all users")
     public ResponseEntity<List<User>> getAllUsers() {
-        List<User> users = userRepository.findAll();
+        List<User> users = userService.getAllUsers();
         return ResponseEntity.ok(users);
     }
 
     @GetMapping("/users/{id}")
     @Operation(summary = "Get user by ID")
     public ResponseEntity<User> getUserById(@PathVariable Long id) {
-        Optional<User> userOpt = userRepository.findById(id);
-
-        if (userOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }   
-        return ResponseEntity.ok(userOpt.get());
+        Optional<User> userOpt = userService.getUserById(id);
+        return userOpt.map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/users/username/{username}")
     @Operation(summary = "Get user by username", description = "Retrieve a specific user by their username")
     public ResponseEntity<User> getUserByUsername(@PathVariable String username) {
-        Optional<User> userOpt = userRepository.findByUsername(username);
-        
-        if (userOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        
-        return ResponseEntity.ok(userOpt.get());
+        Optional<User> userOpt = userService.getUserByUsername(username);
+        return userOpt.map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/users/{id}")
     @Operation(summary = "Delete user by ID")
     public ResponseEntity<String> deleteUser(@PathVariable Long id) {
-        Optional<User> user = userRepository.findById(id);
-
-        if (user.isPresent()) {
-            userRepository.deleteById(id);
-            return ResponseEntity.ok("User with ID " + id + " deleted successfully.");  
+        boolean deleted = userService.deleteUserById(id);
+    
+        if (deleted) {
+            return ResponseEntity.ok("User with ID " + id + " deleted successfully.");
         } else {
             return ResponseEntity.notFound().build();
         }
@@ -117,10 +95,9 @@ public class UserController {
     @DeleteMapping("/users/username/{username}")
     @Operation(summary = "Delete user by username") 
     public ResponseEntity<String> deleteUserByUsername(@PathVariable String username){
-        Optional<User> user = userRepository.findByUsername(username);
-
-        if (user.isPresent()) {
-            userRepository.delete(user.get());
+        boolean deleted = userService.deleteUserByUsername(username);
+    
+        if (deleted) {
             return ResponseEntity.ok("User with username " + username + " deleted successfully.");
         } else {
             return ResponseEntity.notFound().build();
@@ -131,36 +108,16 @@ public class UserController {
     @Operation(summary = "Update user by ID")
     public ResponseEntity<Map<String, String>> updateUser(@PathVariable Long id, @RequestBody User updateRequest) {
         Map<String, String> response = new HashMap<>();
-
-        Optional<User> userOpt = userRepository.findById(id);
-
-        if (userOpt.isEmpty()) {
-            response.put("message", "User not found");
-            return ResponseEntity.notFound().build();
-        }
-
-        User existingUser = userOpt.get();
-
-        if (updateRequest.getUsername() != null &&
-            !updateRequest.getUsername().equals(existingUser.getUsername()) &&
-            userRepository.existsByUsername(updateRequest.getUsername())) {
-            response.put("message", "Username is already taken");
+    
+        try {
+            User updatedUser = userService.updateUser(id, updateRequest);
+            response.put("message", "User updated successfully");
+            response.put("username", updatedUser.getUsername());
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
         }
-
-        if (updateRequest.getUsername() != null && !updateRequest.getUsername().trim().isEmpty()) {
-            existingUser.setUsername(updateRequest.getUsername());
-        }
-
-        if (updateRequest.getPassword() != null && !updateRequest.getPassword().trim().isEmpty()) {
-            existingUser.setPassword(passwordEncoder.encode(updateRequest.getPassword()));
-        }
-
-        userRepository.save(existingUser);
-
-        response.put("message", "User updated successfully");
-        response.put("username", existingUser.getUsername());
-        return ResponseEntity.ok(response);
     }
 
 }

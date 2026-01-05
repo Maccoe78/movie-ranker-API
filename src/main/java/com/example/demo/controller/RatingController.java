@@ -3,9 +3,7 @@ package com.example.demo.controller;
 import com.example.demo.model.Movie;
 import com.example.demo.model.Rating;
 import com.example.demo.model.User;
-import com.example.demo.repository.MovieRepository;
-import com.example.demo.repository.RatingRepository;
-import com.example.demo.repository.UserRepository;
+import com.example.demo.service.RatingService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -32,75 +30,46 @@ import java.util.Optional;
 public class RatingController {
 
     @Autowired
-    private RatingRepository ratingRepository;
-
-    @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
-    private MovieRepository movieRepository;
+    private RatingService ratingService;
 
     @PostMapping
     @Operation(summary = "Add or update a rating")
     public ResponseEntity<Map<String, Object>> addOrUpdateRating(@Valid @RequestBody RatingRequest request) {
         Map<String, Object> response = new HashMap<>();
 
-        Optional<User> userOpt = userRepository.findById(request.getUserId());
-        if (userOpt.isEmpty()) {
-            response.put("message", "User not found");
+        try {
+            Rating savedRating = ratingService.addOrUpdateRating(
+                request.getUserId(),
+                request.getMovieId(),
+                request.getRating(),
+                request.getComment()
+            );
+            
+            response.put("message", "Rating saved successfully");
+            response.put("rating", savedRating);
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            response.put("message", e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
         }
-
-        Optional<Movie> movieOpt = movieRepository.findById(request.getMovieId());
-        if (movieOpt.isEmpty()) {
-            response.put("message", "Movie not found");
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
-        }
-
-        User user = userOpt.get();
-        Movie movie = movieOpt.get();
-
-        Optional<Rating> existingRatingOpt = ratingRepository.findByUserIdAndMovieId(
-            request.getUserId(),
-            request.getMovieId()
-        );
-
-        Rating rating;
-        if (existingRatingOpt.isPresent()) {
-            rating = existingRatingOpt.get();
-            rating.setRating(request.getRating());
-            rating.setComment(request.getComment());
-            response.put("message", "Rating updated successfully");
-        } else {
-            rating = new Rating(user, movie, request.getRating(), request.getComment());
-            response.put("message", "Rating added successfully");
-        }
-
-        Rating savedRating = ratingRepository.save(rating);
-        response.put("rating", savedRating);
-        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/movie/{movieId}")
     @Operation(summary = "Get all ratings for a movie")
     public ResponseEntity<Map<String, Object>> getRatingsByMovie(@PathVariable Long movieId) {
         Map<String, Object> response = new HashMap<>();
-
-        List<RatingDTO> ratingDTOs = ratingRepository.findRatingDTOsByMovieId(movieId);
-        Double averageRating = ratingRepository.getAverageRatingForMovie(movieId);
-        Long totalRatings = ratingRepository.countByMovieId(movieId);
-
-        response.put("ratings", ratingDTOs);
-        response.put("averageRating", averageRating);
-        response.put("totalRatings", totalRatings);
-
+    
+        response.put("ratings", ratingService.getRatingsByMovie(movieId));
+        response.put("averageRating", ratingService.getAverageRatingForMovie(movieId));
+        response.put("totalRatings", ratingService.getTotalRatingsForMovie(movieId));
+        
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/user/{userId}")
     @Operation(summary = "Get all ratings by a user")
     public ResponseEntity<List<Rating>> getRatingsByUser(@PathVariable Long userId) {
-        List<Rating> ratings = ratingRepository.findByUserId(userId);
+        List<Rating> ratings = ratingService.getRatingsByUser(userId);
         return ResponseEntity.ok(ratings);
     }
 
@@ -110,12 +79,9 @@ public class RatingController {
             @PathVariable Long userId,
             @PathVariable Long movieId) {
             
-        Optional<Rating> ratingOpt = ratingRepository.findByUserIdAndMovieId(userId, movieId);
-        if (ratingOpt.isEmpty()) {
-            return ResponseEntity.notFound().build();
-            
-        }
-        return ResponseEntity.ok(ratingOpt.get());
+        Optional<Rating> ratingOpt = ratingService.getRatingByUserAndMovie(userId, movieId);
+        return ratingOpt.map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
         
     }
 
@@ -124,13 +90,13 @@ public class RatingController {
     public ResponseEntity<Map<String, String>> deleteRating(@PathVariable Long id) {
         Map<String, String> response = new HashMap<>();
 
-        Optional<Rating> ratingOpt = ratingRepository.findById(id);
-        if (ratingOpt.isEmpty()) {
+        boolean deleted = ratingService.deleteRating(id);
+    
+        if (!deleted) {
             response.put("message", "Rating not found");
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
         }
-
-        ratingRepository.deleteById(id);
+        
         response.put("message", "Rating deleted successfully");
         return ResponseEntity.ok(response);
     }
